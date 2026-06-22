@@ -1,0 +1,1664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>REBIRTH — An Interactive Cinematic Experience</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/TextPlugin.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Montserrat:wght@100;200;300;400&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap');
+
+  :root {
+    --gold: #c9a84c;
+    --gold-light: #e8cc7d;
+    --crimson: #8b1a1a;
+    --crimson-bright: #c0392b;
+    --ivory: #f5f0e8;
+    --obsidian: #0a0805;
+    --ash: #1a1612;
+    --silver: #9ca3af;
+    --azure: #1e3a5f;
+    --rose: #c0747a;
+  }
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: auto; }
+
+  body {
+    background: var(--obsidian);
+    color: var(--ivory);
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 200;
+    overflow-x: hidden;
+    cursor: none;
+  }
+
+  /* Custom Cursor */
+  #cursor {
+    position: fixed;
+    width: 8px; height: 8px;
+    background: var(--gold);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: width 0.3s, height 0.3s, opacity 0.3s;
+    mix-blend-mode: difference;
+  }
+  #cursor-ring {
+    position: fixed;
+    width: 36px; height: 36px;
+    border: 1px solid rgba(201,168,76,0.5);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9998;
+    transform: translate(-50%, -50%);
+    transition: width 0.4s ease, height 0.4s ease, border-color 0.4s;
+  }
+
+  /* Progress Bar */
+  #progress-bar {
+    position: fixed;
+    top: 0; left: 0;
+    width: 0%; height: 2px;
+    background: linear-gradient(90deg, var(--crimson), var(--gold), var(--rose));
+    z-index: 1000;
+    transition: width 0.1s;
+  }
+
+  /* Navigation */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 900;
+    padding: 2rem 4rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(to bottom, rgba(10,8,5,0.9) 0%, transparent 100%);
+  }
+  .nav-logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.5rem;
+    font-weight: 300;
+    letter-spacing: 0.6em;
+    color: var(--gold);
+    text-transform: uppercase;
+  }
+  .nav-chapters {
+    display: flex;
+    gap: 2rem;
+    list-style: none;
+  }
+  .nav-chapters a {
+    font-size: 0.6rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: rgba(245,240,232,0.5);
+    text-decoration: none;
+    transition: color 0.3s;
+  }
+  .nav-chapters a:hover { color: var(--gold); }
+
+  /* Canvas */
+  #three-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* Scroll Container */
+  #scroll-container {
+    position: relative;
+    z-index: 10;
+  }
+
+  /* ─── SECTIONS ─────────────────────────────────── */
+  .scene {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Cinematic letterbox */
+  .scene::before, .scene::after {
+    content: '';
+    position: fixed;
+    left: 0; right: 0;
+    height: 7vh;
+    background: var(--obsidian);
+    z-index: 800;
+    pointer-events: none;
+  }
+  .scene::before { top: 0; }
+  .scene::after { bottom: 0; }
+
+  /* Scene overlays */
+  .scene-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+
+  .scene-content {
+    position: relative;
+    z-index: 20;
+    text-align: center;
+    max-width: 900px;
+    padding: 2rem;
+  }
+
+  /* Chapter label */
+  .chapter-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.5em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1.5rem;
+    opacity: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+  .chapter-label::before, .chapter-label::after {
+    content: '';
+    width: 40px; height: 1px;
+    background: var(--gold);
+    opacity: 0.5;
+  }
+
+  .scene-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(3rem, 8vw, 7rem);
+    font-weight: 300;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+    margin-bottom: 2rem;
+    opacity: 0;
+  }
+
+  .scene-subtitle {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: clamp(1rem, 2.5vw, 1.5rem);
+    font-weight: 300;
+    color: rgba(245,240,232,0.65);
+    margin-bottom: 2.5rem;
+    opacity: 0;
+    line-height: 1.8;
+  }
+
+  .scene-body {
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    line-height: 2.2;
+    color: rgba(245,240,232,0.5);
+    max-width: 520px;
+    margin: 0 auto;
+    opacity: 0;
+  }
+
+  /* ─── HERO ───────────────────────────────────────── */
+  #hero {
+    min-height: 100vh;
+    background: var(--obsidian);
+  }
+  #hero .scene-overlay {
+    background: radial-gradient(ellipse 80% 60% at 50% 60%, rgba(139,26,26,0.12) 0%, transparent 70%);
+  }
+  .hero-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(5rem, 18vw, 14rem);
+    font-weight: 300;
+    letter-spacing: 0.25em;
+    line-height: 1;
+    color: transparent;
+    -webkit-text-stroke: 1px rgba(201,168,76,0.6);
+    text-transform: uppercase;
+    opacity: 0;
+    position: relative;
+  }
+  .hero-title span {
+    display: block;
+    color: var(--gold);
+    -webkit-text-stroke: 0;
+    font-size: 0.7em;
+    letter-spacing: 0.4em;
+    font-weight: 300;
+  }
+  .hero-tagline {
+    font-size: 0.65rem;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: rgba(245,240,232,0.4);
+    margin-top: 3rem;
+    opacity: 0;
+  }
+  .scroll-indicator {
+    position: absolute;
+    bottom: 3rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    opacity: 0;
+  }
+  .scroll-indicator span {
+    font-size: 0.5rem;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: rgba(245,240,232,0.3);
+  }
+  .scroll-line {
+    width: 1px;
+    height: 50px;
+    background: linear-gradient(to bottom, rgba(201,168,76,0.6), transparent);
+    animation: scrollPulse 2s ease-in-out infinite;
+  }
+  @keyframes scrollPulse {
+    0%, 100% { opacity: 0.4; transform: scaleY(1); }
+    50% { opacity: 1; transform: scaleY(1.15); }
+  }
+
+  /* ─── DREAMER ─────────────────────────────────────── */
+  #dreamer {
+    min-height: 150vh;
+    background: linear-gradient(180deg, var(--obsidian) 0%, #0d0f14 50%, #0a0810 100%);
+  }
+  #dreamer .scene-overlay {
+    background: radial-gradient(ellipse 60% 50% at 30% 50%, rgba(30,58,95,0.25) 0%, transparent 65%);
+  }
+  #dreamer .scene-title { color: var(--ivory); }
+  .paint-stroke {
+    position: absolute;
+    opacity: 0.08;
+    font-size: 20vw;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    color: var(--azure);
+    white-space: nowrap;
+    pointer-events: none;
+    letter-spacing: -0.05em;
+  }
+
+  /* ─── STARDOM ─────────────────────────────────────── */
+  #stardom {
+    min-height: 150vh;
+    background: linear-gradient(180deg, #0a0810 0%, #0f0a05 100%);
+  }
+  #stardom .scene-title {
+    background: linear-gradient(135deg, var(--gold-light), var(--gold), #8b6914);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  #stardom .scene-overlay {
+    background: radial-gradient(ellipse 70% 50% at 70% 50%, rgba(201,168,76,0.12) 0%, transparent 65%);
+  }
+
+  /* ─── LOVE ─────────────────────────────────────── */
+  #love {
+    min-height: 180vh;
+    background: linear-gradient(180deg, #0f0a05 0%, #110810 50%, #0c0508 100%);
+  }
+  #love .scene-title { color: var(--rose); }
+  #love .scene-overlay {
+    background: radial-gradient(ellipse 60% 60% at 50% 50%, rgba(192,116,122,0.12) 0%, transparent 70%);
+  }
+  .heart-particle {
+    position: absolute;
+    font-size: 1rem;
+    color: rgba(192,116,122,0.3);
+    animation: floatHeart linear infinite;
+    pointer-events: none;
+  }
+  @keyframes floatHeart {
+    0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 0.5; }
+    100% { transform: translateY(-80vh) rotate(360deg); opacity: 0; }
+  }
+
+  /* ─── BETRAYAL ─────────────────────────────────────── */
+  #betrayal {
+    min-height: 150vh;
+    background: linear-gradient(180deg, #0c0508 0%, #100308 100%);
+  }
+  #betrayal .scene-title { color: var(--crimson-bright); }
+  #betrayal .scene-overlay {
+    background: radial-gradient(ellipse 50% 40% at 50% 50%, rgba(139,26,26,0.2) 0%, transparent 70%);
+  }
+  .crack-line {
+    position: absolute;
+    background: rgba(192,57,43,0.6);
+    transform-origin: top center;
+    pointer-events: none;
+  }
+
+  /* ─── TRAGEDY ─────────────────────────────────────── */
+  #tragedy {
+    min-height: 200vh;
+    background: linear-gradient(180deg, #100308 0%, #050305 100%);
+  }
+  #tragedy .scene-title {
+    color: var(--silver);
+    font-style: italic;
+  }
+  .rain-drop {
+    position: absolute;
+    width: 1px;
+    background: linear-gradient(to bottom, transparent, rgba(156,163,175,0.4));
+    animation: rain linear infinite;
+    pointer-events: none;
+  }
+  @keyframes rain {
+    0% { top: -10%; opacity: 0; }
+    5% { opacity: 1; }
+    95% { opacity: 0.5; }
+    100% { top: 110%; opacity: 0; }
+  }
+  .tragedy-quote {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: clamp(1.2rem, 3vw, 2rem);
+    font-weight: 300;
+    color: rgba(245,240,232,0.4);
+    border-left: 2px solid var(--crimson);
+    padding-left: 2rem;
+    text-align: left;
+    max-width: 500px;
+    line-height: 1.8;
+    opacity: 0;
+    margin: 2rem auto;
+  }
+
+  /* ─── REBIRTH ─────────────────────────────────────── */
+  #rebirth {
+    min-height: 200vh;
+    background: linear-gradient(180deg, #050305 0%, #080510 50%, #060810 100%);
+  }
+  #rebirth .scene-overlay {
+    background: radial-gradient(ellipse 80% 70% at 50% 50%,
+      rgba(30,58,95,0.15) 0%,
+      rgba(139,26,26,0.08) 40%,
+      transparent 70%);
+  }
+  #rebirth .scene-title {
+    background: linear-gradient(135deg, #ffffff, var(--gold-light), #ffffff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .phoenix-glow {
+    position: absolute;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(201,168,76,0.08) 0%, transparent 70%);
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    animation: phoenixPulse 4s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes phoenixPulse {
+    0%, 100% { transform: translate(-50%,-50%) scale(1); opacity: 0.6; }
+    50% { transform: translate(-50%,-50%) scale(1.3); opacity: 1; }
+  }
+
+  /* ─── INVESTIGATION ─────────────────────────────────── */
+  #investigation {
+    min-height: 180vh;
+    background: linear-gradient(180deg, #060810 0%, #050608 100%);
+  }
+  #investigation .scene-title { color: var(--ivory); }
+  #investigation .scene-overlay {
+    background: radial-gradient(ellipse 40% 60% at 30% 50%, rgba(30,58,95,0.2) 0%, transparent 60%);
+  }
+  .evidence-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-top: 3rem;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+    opacity: 0;
+  }
+  .evidence-item {
+    border: 1px solid rgba(201,168,76,0.2);
+    padding: 1.25rem;
+    text-align: left;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.4s, transform 0.3s;
+  }
+  .evidence-item::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(201,168,76,0.05), transparent);
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  .evidence-item:hover {
+    border-color: rgba(201,168,76,0.6);
+    transform: translateY(-3px);
+  }
+  .evidence-item:hover::before { opacity: 1; }
+  .evidence-item h4 {
+    font-size: 0.6rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 0.5rem;
+  }
+  .evidence-item p {
+    font-size: 0.65rem;
+    line-height: 1.8;
+    color: rgba(245,240,232,0.45);
+    letter-spacing: 0.05em;
+  }
+  .evidence-tag {
+    font-size: 0.45rem;
+    letter-spacing: 0.3em;
+    color: var(--crimson-bright);
+    text-transform: uppercase;
+    margin-top: 0.75rem;
+  }
+
+  /* ─── JUSTICE ─────────────────────────────────────── */
+  #justice {
+    min-height: 200vh;
+    background: linear-gradient(180deg, #050608 0%, var(--obsidian) 100%);
+  }
+  #justice .scene-title {
+    background: linear-gradient(135deg, var(--gold), var(--ivory), var(--gold));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  #justice .scene-overlay {
+    background: radial-gradient(ellipse 70% 50% at 50% 40%, rgba(201,168,76,0.1) 0%, transparent 65%);
+  }
+
+  /* ─── FINALE ─────────────────────────────────────── */
+  #finale {
+    min-height: 100vh;
+    background: var(--obsidian);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 2rem;
+  }
+  .finale-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(2rem, 6vw, 5rem);
+    font-weight: 300;
+    color: var(--gold);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    opacity: 0;
+  }
+  .finale-divider {
+    width: 120px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    opacity: 0;
+  }
+  .finale-tagline {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: 1.1rem;
+    color: rgba(245,240,232,0.4);
+    letter-spacing: 0.1em;
+    opacity: 0;
+    text-align: center;
+    max-width: 400px;
+  }
+  .restart-btn {
+    font-size: 0.55rem;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: rgba(201,168,76,0.6);
+    border: 1px solid rgba(201,168,76,0.3);
+    padding: 0.9rem 2.5rem;
+    background: none;
+    cursor: pointer;
+    transition: all 0.4s;
+    opacity: 0;
+    font-family: 'Montserrat', sans-serif;
+  }
+  .restart-btn:hover {
+    color: var(--gold);
+    border-color: var(--gold);
+    background: rgba(201,168,76,0.05);
+  }
+
+  /* ─── FLOATING MEMORIES ─────────────────────────────── */
+  .memory-float {
+    position: fixed;
+    pointer-events: none;
+    z-index: 50;
+    opacity: 0;
+    filter: blur(0px);
+    transition: opacity 1s;
+  }
+  .memory-float.active { opacity: 1; }
+  .memory-orb {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--gold);
+    box-shadow: 0 0 20px 4px rgba(201,168,76,0.4);
+    animation: orbDrift 8s ease-in-out infinite;
+  }
+  @keyframes orbDrift {
+    0%, 100% { transform: translateY(0) translateX(0); }
+    25% { transform: translateY(-30px) translateX(15px); }
+    50% { transform: translateY(-10px) translateX(-20px); }
+    75% { transform: translateY(-40px) translateX(10px); }
+  }
+
+  /* ─── TIMELINE SIDEBAR ─────────────────────────────── */
+  #timeline-sidebar {
+    position: fixed;
+    right: 3rem;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-end;
+  }
+  .timeline-dot {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    opacity: 0.3;
+    transition: opacity 0.4s;
+  }
+  .timeline-dot.active { opacity: 1; }
+  .timeline-dot-label {
+    font-size: 0.45rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ivory);
+    opacity: 0;
+    transition: opacity 0.3s;
+    white-space: nowrap;
+  }
+  .timeline-dot:hover .timeline-dot-label,
+  .timeline-dot.active .timeline-dot-label { opacity: 1; }
+  .timeline-dot-pip {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--gold);
+    transition: transform 0.4s, box-shadow 0.4s;
+  }
+  .timeline-dot.active .timeline-dot-pip {
+    transform: scale(1.6);
+    box-shadow: 0 0 10px rgba(201,168,76,0.8);
+  }
+
+  /* ─── GLASS SHATTER OVERLAY ─────────────────────────── */
+  #glass-shatter {
+    position: fixed;
+    inset: 0;
+    z-index: 700;
+    pointer-events: none;
+    opacity: 0;
+  }
+  .shard {
+    position: absolute;
+    background: rgba(192,57,43,0.15);
+    border: 1px solid rgba(192,57,43,0.4);
+    transform-origin: center center;
+    backdrop-filter: blur(1px);
+  }
+
+  /* ─── NOISE TEXTURE ─────────────────────────────────── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9990;
+    opacity: 0.5;
+  }
+
+  /* ─── VIGNETTE ─────────────────────────────────────── */
+  #vignette {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(10,8,5,0.7) 100%);
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  /* ─── LOADING ─────────────────────────────────────── */
+  #loading-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--obsidian);
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+  }
+  #loading-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 3rem;
+    letter-spacing: 0.5em;
+    color: var(--gold);
+    font-weight: 300;
+    text-transform: uppercase;
+    opacity: 0;
+    animation: fadeInUp 1.5s 0.5s forwards;
+  }
+  #loading-progress-container {
+    width: 200px; height: 1px;
+    background: rgba(245,240,232,0.1);
+    overflow: hidden;
+    opacity: 0;
+    animation: fadeInUp 1s 1.2s forwards;
+  }
+  #loading-progress-fill {
+    width: 0%; height: 100%;
+    background: linear-gradient(90deg, var(--crimson), var(--gold));
+    transition: width 0.3s;
+  }
+  #loading-text {
+    font-size: 0.5rem;
+    letter-spacing: 0.4em;
+    color: rgba(245,240,232,0.3);
+    text-transform: uppercase;
+    opacity: 0;
+    animation: fadeInUp 1s 1.4s forwards;
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Scanline effect */
+  #scanlines {
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(10,8,5,0.03) 2px,
+      rgba(10,8,5,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 9989;
+  }
+
+  /* Scroll sticky pinner */
+  .sticky-scene {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Parallax text */
+  .parallax-word {
+    display: inline-block;
+  }
+
+  /* ─── LOVE SPECIFIC ─────────────────────────────────── */
+  .love-split {
+    display: flex;
+    gap: 8rem;
+    align-items: flex-start;
+  }
+  .love-col {
+    flex: 1;
+    text-align: left;
+  }
+  .love-col h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    font-weight: 300;
+    color: var(--rose);
+    margin-bottom: 1rem;
+    font-style: italic;
+  }
+  .love-col p {
+    font-size: 0.7rem;
+    line-height: 2.2;
+    color: rgba(245,240,232,0.45);
+    letter-spacing: 0.08em;
+  }
+  .love-divider {
+    width: 1px;
+    min-height: 200px;
+    background: linear-gradient(to bottom, transparent, var(--rose), transparent);
+    opacity: 0.4;
+    flex-shrink: 0;
+  }
+
+  /* Glitch effect for betrayal */
+  .glitch-text {
+    position: relative;
+  }
+  .glitch-text::before,
+  .glitch-text::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
+    color: var(--crimson-bright);
+    opacity: 0;
+  }
+  .glitch-text::before {
+    animation: glitch1 4s 2s infinite;
+    clip-path: polygon(0 15%, 100% 15%, 100% 40%, 0 40%);
+  }
+  .glitch-text::after {
+    animation: glitch2 4s 2.2s infinite;
+    clip-path: polygon(0 60%, 100% 60%, 100% 85%, 0 85%);
+  }
+  @keyframes glitch1 {
+    0%, 90%, 100% { opacity: 0; transform: translateX(0); }
+    92% { opacity: 0.8; transform: translateX(-5px); }
+    94% { opacity: 0; transform: translateX(5px); }
+    96% { opacity: 0.8; transform: translateX(-3px); }
+    98% { opacity: 0; }
+  }
+  @keyframes glitch2 {
+    0%, 90%, 100% { opacity: 0; transform: translateX(0); }
+    91% { opacity: 0.8; transform: translateX(5px); }
+    93% { opacity: 0; transform: translateX(-5px); }
+    95% { opacity: 0.6; transform: translateX(3px); }
+    97% { opacity: 0; }
+  }
+
+  /* ─── RESPONSIVE ─────────────────────────────────── */
+  @media (max-width: 768px) {
+    nav { padding: 1.5rem 2rem; }
+    .nav-chapters { display: none; }
+    #timeline-sidebar { right: 1rem; }
+    .love-split { flex-direction: column; gap: 2rem; }
+    .love-divider { display: none; }
+    .evidence-grid { grid-template-columns: 1fr; }
+    .scene-title { font-size: clamp(2.5rem, 12vw, 5rem); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Loading Screen -->
+<div id="loading-screen">
+  <div id="loading-title">REBIRTH</div>
+  <div id="loading-progress-container">
+    <div id="loading-progress-fill"></div>
+  </div>
+  <div id="loading-text">Preparing the experience</div>
+</div>
+
+<!-- Custom Cursor -->
+<div id="cursor"></div>
+<div id="cursor-ring"></div>
+
+<!-- Progress Bar -->
+<div id="progress-bar"></div>
+
+<!-- Scanlines & Vignette -->
+<div id="scanlines"></div>
+<div id="vignette"></div>
+
+<!-- Three.js Canvas -->
+<canvas id="three-canvas"></canvas>
+
+<!-- Glass Shatter Overlay -->
+<div id="glass-shatter"></div>
+
+<!-- Navigation -->
+<nav>
+  <div class="nav-logo">Rebirth</div>
+  <ul class="nav-chapters">
+    <li><a href="#dreamer">Dreamer</a></li>
+    <li><a href="#stardom">Stardom</a></li>
+    <li><a href="#love">Love</a></li>
+    <li><a href="#betrayal">Betrayal</a></li>
+    <li><a href="#tragedy">Tragedy</a></li>
+    <li><a href="#rebirth">Rebirth</a></li>
+    <li><a href="#investigation">Investigation</a></li>
+    <li><a href="#justice">Justice</a></li>
+  </ul>
+</nav>
+
+<!-- Timeline Sidebar -->
+<div id="timeline-sidebar">
+  <div class="timeline-dot active" data-target="#hero">
+    <span class="timeline-dot-label">Prologue</span>
+    <div class="timeline-dot-pip"></div>
+  </div>
+  <div class="timeline-dot" data-target="#dreamer">
+    <span class="timeline-dot-label">Dreamer</span>
+    <div class="timeline-dot-pip"></div>
+  </div>
+  <div class="timeline-dot" data-target="#stardom">
+    <span class="timeline-dot-label">Stardom</span>
+    <div class="timeline-dot-pip"></div>
+  </div>
+  <div class="timeline-dot" data-target="#love">
+    <span class="timeline-dot-label">Love</span>
+    <div class="timeline-dot-pip"></div>
+  </div>
+  <div class="timeline-dot" data-target="#betrayal">
+    <span class="timeline-dot-label">Betrayal</span>
+    <div class="timeline-dot-pip"></div>
+  </div>
+  <div class="timeline-dot" data-target="#tragedy">
+    <span class="timeline-dot-label">Tragedy</span>
+    <div class="timeline-dot-pip"></div>
+  </div>
+  <div class="timeline-dot" data-target="#rebirth">
+    <span class="timeline-dot-label">Rebirth</span>
+    <div class="timeline-dot-pip"></div>
+  </div>
+  <div class="timeline-dot" data-target="#investigation">
+    <span class="timeline-dot-label">Investigation</span>
+    <div class="timeline-dot-pip"></div>
+  </div>
+  <div class="timeline-dot" data-target="#justice">
+    <span class="timeline-dot-label">Justice</span>
+    <div class="timeline-dot-pip"></div>
+  </div>
+</div>
+
+<!-- Main Scroll Container -->
+<div id="scroll-container">
+
+  <!-- HERO -->
+  <section class="scene" id="hero">
+    <div class="scene-overlay"></div>
+    <div class="scene-content">
+      <h1 class="hero-title">
+        <span>A Cinematic Experience</span>
+        REBIRTH
+      </h1>
+      <p class="hero-tagline">Love. Loss. Legacy. — An Immortal Story</p>
+    </div>
+    <div class="scroll-indicator">
+      <span>Begin</span>
+      <div class="scroll-line"></div>
+    </div>
+  </section>
+
+  <!-- DREAMER -->
+  <section class="scene" id="dreamer">
+    <div class="scene-overlay"></div>
+    <div class="paint-stroke" style="top: 20%; left: -5%;">Dream</div>
+    <div class="scene-content">
+      <div class="chapter-label" id="label-dreamer">Chapter I — 1987</div>
+      <h2 class="scene-title" id="title-dreamer">The<br>Dreamer</h2>
+      <p class="scene-subtitle" id="sub-dreamer">
+        A young painter in a crumbling Brooklyn studio,<br>
+        canvas after canvas reaching toward a sky he cannot touch.
+      </p>
+      <p class="scene-body" id="body-dreamer">
+        Elias Moon is twenty-three. His apartment smells of linseed oil and ambition.
+        His paintings sell for nothing. His eyes see everything. In the blue hours
+        before dawn, he creates worlds that do not yet know his name.
+      </p>
+    </div>
+  </section>
+
+  <!-- STARDOM -->
+  <section class="scene" id="stardom">
+    <div class="scene-overlay"></div>
+    <div class="scene-content">
+      <div class="chapter-label" id="label-stardom">Chapter II — 1989</div>
+      <h2 class="scene-title" id="title-stardom">Stardom<br>Rising</h2>
+      <p class="scene-subtitle" id="sub-stardom">
+        A solo exhibition changes everything.<br>
+        Critics call it "the birth of a new American voice."
+      </p>
+      <p class="scene-body" id="body-stardom">
+        The Soho gallery empties its wine within the hour.
+        Collectors circle like planets caught by a new gravity.
+        Elias stands in the corner of his own triumph, still the same boy
+        who painted the moon from a fire-escape stairwell.
+      </p>
+    </div>
+  </section>
+
+  <!-- LOVE -->
+  <section class="scene" id="love">
+    <div class="scene-overlay"></div>
+    <div class="scene-content" style="max-width: 1100px;">
+      <div class="chapter-label" id="label-love">Chapter III — 1991</div>
+      <h2 class="scene-title" id="title-love">Her</h2>
+      <p class="scene-subtitle" id="sub-love">
+        Vivienne Laurent. Actress. Constellation.
+      </p>
+      <div class="love-split" id="love-split" style="opacity:0; margin-top: 3rem;">
+        <div class="love-col">
+          <h3>She saw his paintings before she saw his face.</h3>
+          <p>At the opening of his second collection, she stood before a
+          twelve-foot canvas — a woman drowning in light — and wept.
+          He watched her cry for eleven minutes before he dared approach.</p>
+        </div>
+        <div class="love-divider"></div>
+        <div class="love-col">
+          <h3>He painted her in secret for six months.</h3>
+          <p>Forty-seven portraits. Each one trying to capture something
+          the last had missed. Not her face — any camera could steal that —
+          but the specific gravity she carried into rooms,
+          the silence she left when she laughed.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BETRAYAL -->
+  <section class="scene" id="betrayal">
+    <div class="scene-overlay"></div>
+    <div class="scene-content">
+      <div class="chapter-label" id="label-betrayal">Chapter IV — 1994</div>
+      <h2 class="scene-title glitch-text" id="title-betrayal" data-text="Betrayal">Betrayal</h2>
+      <p class="scene-subtitle" id="sub-betrayal">
+        They came with smiles and contracts.<br>
+        They left with everything he had built.
+      </p>
+      <p class="scene-body" id="body-betrayal">
+        Senator Harrow. Media mogul Vincent Pale. The consortium had
+        watched Elias accumulate influence for three years. Artists
+        who speak too loudly, they decided, must be silenced.
+        They forged the documents on a Sunday. By Monday,
+        his name was ruin.
+      </p>
+    </div>
+  </section>
+
+  <!-- TRAGEDY -->
+  <section class="scene" id="tragedy">
+    <div class="scene-overlay"></div>
+    <div class="scene-content">
+      <div class="chapter-label" id="label-tragedy">Chapter V — 1994</div>
+      <h2 class="scene-title" id="title-tragedy" style="font-style:italic;">
+        The Last<br>Painting
+      </h2>
+      <p class="scene-subtitle" id="sub-tragedy">
+        She never received his final letter.<br>
+        Someone made sure of that.
+      </p>
+      <div class="tragedy-quote" id="tragedy-quote">
+        "I painted you in every color I had. When the colors ran out,
+        I understood that you were not something to be painted.
+        You were the light that made painting possible."
+        <br><br>— Elias Moon, unsent, October 1994
+      </div>
+      <p class="scene-body" id="body-tragedy">
+        The car that struck her on Mulholland Drive was never found.
+        The driver was never named. The investigation closed in eleven days.
+        Elias disappeared the morning of her funeral — declared missing,
+        then dead, then forgotten.
+      </p>
+    </div>
+  </section>
+
+  <!-- REBIRTH -->
+  <section class="scene" id="rebirth">
+    <div class="scene-overlay"></div>
+    <div class="phoenix-glow"></div>
+    <div class="scene-content">
+      <div class="chapter-label" id="label-rebirth">Chapter VI — 2021</div>
+      <h2 class="scene-title" id="title-rebirth">
+        The<br>Return
+      </h2>
+      <p class="scene-subtitle" id="sub-rebirth">
+        Twenty-seven years in silence.<br>
+        Now the world will finally hear him.
+      </p>
+      <p class="scene-body" id="body-rebirth">
+        He surfaced under a different name — Atlas Black.
+        The debut album sold four million copies before the world
+        knew the face behind the voice. A voice like something
+        that had been underground for decades, learning to sing
+        in the dark.
+      </p>
+    </div>
+  </section>
+
+  <!-- INVESTIGATION -->
+  <section class="scene" id="investigation">
+    <div class="scene-overlay"></div>
+    <div class="scene-content" style="max-width: 900px;">
+      <div class="chapter-label" id="label-investigation">Chapter VII — 2023</div>
+      <h2 class="scene-title" id="title-investigation">
+        The<br>Dossier
+      </h2>
+      <p class="scene-subtitle" id="sub-investigation">
+        Every truth leaves a shadow.<br>
+        He had twenty-seven years to find them all.
+      </p>
+      <div class="evidence-grid" id="evidence-grid">
+        <div class="evidence-item">
+          <h4>Document 01</h4>
+          <p>Falsified fraud documents bearing the notary seal of a deceased clerk — created six weeks before the arrest.</p>
+          <div class="evidence-tag">Classified</div>
+        </div>
+        <div class="evidence-item">
+          <h4>Phone Record</h4>
+          <p>Three calls between Senator Harrow and Vincent Pale the night before the crash. Duration: 47 minutes.</p>
+          <div class="evidence-tag">Recovered</div>
+        </div>
+        <div class="evidence-item">
+          <h4>Witness Statement</h4>
+          <p>"I saw the black Mercedes change lanes deliberately. The driver looked back and accelerated." — Anonymous, 1994.</p>
+          <div class="evidence-tag">Suppressed</div>
+        </div>
+        <div class="evidence-item">
+          <h4>Financial Trail</h4>
+          <p>$2.4M transferred from Pale Holdings to an offshore account two days after Vivienne's death.</p>
+          <div class="evidence-tag">Exposed</div>
+        </div>
+        <div class="evidence-item">
+          <h4>Autopsy Report</h4>
+          <p>Original toxicology findings were redacted. The unedited version shows sedatives in Vivienne's system.</p>
+          <div class="evidence-tag">Leaked</div>
+        </div>
+        <div class="evidence-item">
+          <h4>The Letter</h4>
+          <p>Vivienne's final letter to Elias, intercepted and held in Pale's private archive for twenty-nine years.</p>
+          <div class="evidence-tag">Recovered</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- JUSTICE -->
+  <section class="scene" id="justice">
+    <div class="scene-overlay"></div>
+    <div class="scene-content">
+      <div class="chapter-label" id="label-justice">Chapter VIII — 2024</div>
+      <h2 class="scene-title" id="title-justice">
+        Justice<br>& Light
+      </h2>
+      <p class="scene-subtitle" id="sub-justice">
+        The trial lasted forty-one days.<br>
+        The truth had waited thirty years.
+      </p>
+      <p class="scene-body" id="body-justice">
+        Atlas Black performed at the Grammy stage the night the verdict
+        was announced. He played one song — the song he wrote the morning
+        he disappeared in 1994. The song Vivienne never heard.
+        The arena wept. The cameras cut away. The guilty were taken
+        from the courthouse to silence.
+      </p>
+    </div>
+  </section>
+
+  <!-- FINALE -->
+  <section id="finale" class="scene" style="flex-direction: column; gap: 2rem;">
+    <div class="finale-title" id="finale-title">Rebirth</div>
+    <div class="finale-divider" id="finale-divider"></div>
+    <p class="finale-tagline" id="finale-tagline">
+      "The only thing more powerful than what they tried to bury<br>
+      is the voice that grew in the dark."
+    </p>
+    <button class="restart-btn" id="restart-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+      Experience Again
+    </button>
+  </section>
+
+</div><!-- /scroll-container -->
+
+<script>
+// ─── THREE.JS STARFIELD ──────────────────────────────────────────────────
+const canvas = document.getElementById('three-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+const scene3d = new THREE.Scene();
+const camera3d = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+camera3d.position.z = 800;
+
+// Stars
+const starCount = 2500;
+const starGeometry = new THREE.BufferGeometry();
+const starPositions = new Float32Array(starCount * 3);
+const starColors = new Float32Array(starCount * 3);
+const starSizes = new Float32Array(starCount);
+
+const goldColor = new THREE.Color(0xc9a84c);
+const ivoryColor = new THREE.Color(0xf5f0e8);
+const azureColor = new THREE.Color(0x1e3a5f);
+const roseColor = new THREE.Color(0xc0747a);
+
+for (let i = 0; i < starCount; i++) {
+  starPositions[i * 3] = (Math.random() - 0.5) * 3000;
+  starPositions[i * 3 + 1] = (Math.random() - 0.5) * 2000;
+  starPositions[i * 3 + 2] = (Math.random() - 0.5) * 1500 - 200;
+
+  const r = Math.random();
+  let c = r < 0.3 ? goldColor : r < 0.6 ? ivoryColor : r < 0.8 ? azureColor : roseColor;
+  starColors[i * 3] = c.r; starColors[i * 3 + 1] = c.g; starColors[i * 3 + 2] = c.b;
+  starSizes[i] = Math.random() * 2.5 + 0.3;
+}
+
+starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+starGeometry.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+starGeometry.setAttribute('size', new THREE.BufferAttribute(starSizes, 1));
+
+const starMaterial = new THREE.PointsMaterial({
+  size: 1.5,
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.85,
+  sizeAttenuation: true,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+});
+
+const stars = new THREE.Points(starGeometry, starMaterial);
+scene3d.add(stars);
+
+// Particle Nebula
+const nebCount = 400;
+const nebGeo = new THREE.BufferGeometry();
+const nebPos = new Float32Array(nebCount * 3);
+const nebCol = new Float32Array(nebCount * 3);
+for (let i = 0; i < nebCount; i++) {
+  const theta = Math.random() * Math.PI * 2;
+  const r = Math.random() * 400 + 100;
+  nebPos[i * 3] = Math.cos(theta) * r;
+  nebPos[i * 3 + 1] = (Math.random() - 0.5) * 200;
+  nebPos[i * 3 + 2] = Math.sin(theta) * r - 300;
+  nebCol[i * 3] = 0.5 + Math.random() * 0.5;
+  nebCol[i * 3 + 1] = 0.4 + Math.random() * 0.3;
+  nebCol[i * 3 + 2] = 0.2 + Math.random() * 0.4;
+}
+nebGeo.setAttribute('position', new THREE.BufferAttribute(nebPos, 3));
+nebGeo.setAttribute('color', new THREE.BufferAttribute(nebCol, 3));
+const nebMat = new THREE.PointsMaterial({
+  size: 2.5, vertexColors: true, transparent: true, opacity: 0.3,
+  blending: THREE.AdditiveBlending, depthWrite: false,
+});
+const nebula = new THREE.Points(nebGeo, nebMat);
+scene3d.add(nebula);
+
+// Window resize
+window.addEventListener('resize', () => {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera3d.aspect = window.innerWidth / window.innerHeight;
+  camera3d.updateProjectionMatrix();
+});
+
+// ─── LOADING SEQUENCE ────────────────────────────────────────────────────
+let loadProgress = 0;
+const loadFill = document.getElementById('loading-progress-fill');
+const loadInterval = setInterval(() => {
+  loadProgress += Math.random() * 15;
+  if (loadProgress >= 100) {
+    loadProgress = 100;
+    clearInterval(loadInterval);
+    setTimeout(initExperience, 400);
+  }
+  loadFill.style.width = loadProgress + '%';
+}, 80);
+
+// ─── CURSOR ──────────────────────────────────────────────────────────────
+const cursorDot = document.getElementById('cursor');
+const cursorRing = document.getElementById('cursor-ring');
+let mouseX = 0, mouseY = 0, ringX = 0, ringY = 0;
+
+document.addEventListener('mousemove', e => {
+  mouseX = e.clientX; mouseY = e.clientY;
+  cursorDot.style.left = mouseX + 'px';
+  cursorDot.style.top = mouseY + 'px';
+});
+
+function animateCursor() {
+  ringX += (mouseX - ringX) * 0.12;
+  ringY += (mouseY - ringY) *.12;
+  cursorRing.style.left = ringX + 'px';
+  cursorRing.style.top = ringY + 'px';
+  requestAnimationFrame(animateCursor);
+}
+animateCursor();
+
+document.querySelectorAll('a, button, .evidence-item, .timeline-dot').forEach(el => {
+  el.addEventListener('mouseenter', () => {
+    cursorDot.style.width = '20px';
+    cursorDot.style.height = '20px';
+    cursorRing.style.width = '60px';
+    cursorRing.style.height = '60px';
+    cursorRing.style.borderColor = 'rgba(201,168,76,0.8)';
+  });
+  el.addEventListener('mouseleave', () => {
+    cursorDot.style.width = '8px';
+    cursorDot.style.height = '8px';
+    cursorRing.style.width = '36px';
+    cursorRing.style.height = '36px';
+    cursorRing.style.borderColor = 'rgba(201,168,76,0.5)';
+  });
+});
+
+// ─── GLASS SHATTER ───────────────────────────────────────────────────────
+function createShards() {
+  const container = document.getElementById('glass-shatter');
+  container.innerHTML = '';
+  const shardCount = 18;
+  for (let i = 0; i < shardCount; i++) {
+    const shard = document.createElement('div');
+    shard.className = 'shard';
+    const w = Math.random() * 200 + 80;
+    const h = Math.random() * 150 + 60;
+    shard.style.cssText = `
+      width:${w}px; height:${h}px;
+      left:${Math.random()*100}%; top:${Math.random()*100}%;
+      transform: rotate(${Math.random()*360}deg) skew(${Math.random()*20}deg, ${Math.random()*20}deg);
+      clip-path: polygon(
+        ${Math.random()*50}% 0%,
+        100% ${Math.random()*50}%,
+        ${50+Math.random()*50}% 100%,
+        0% ${50+Math.random()*50}%
+      );
+    `;
+    container.appendChild(shard);
+  }
+}
+
+function animateGlassShatter(callback) {
+  createShards();
+  const overlay = document.getElementById('glass-shatter');
+  const shards = overlay.querySelectorAll('.shard');
+  gsap.set(overlay, { opacity: 1 });
+  gsap.fromTo(shards,
+    { scale: 0.1, opacity: 0, x: '50vw', y: '50vh' },
+    {
+      duration: 0.6, scale: 1, opacity: 1,
+      x: () => (Math.random()-0.5)*200 + 'px',
+      y: () => (Math.random()-0.5)*200 + 'px',
+      stagger: 0.02, ease: 'expo.out'
+    }
+  );
+  setTimeout(() => {
+    gsap.to(shards, {
+      duration: 0.8, opacity: 0, y: '+=100', scale: 0.5, stagger: 0.02,
+      ease: 'power2.in',
+      onComplete: () => { gsap.set(overlay, { opacity: 0 }); if(callback) callback(); }
+    });
+  }, 800);
+}
+
+// ─── FLOATING MEMORIES (orbs) ─────────────────────────────────────────────
+function spawnMemoryOrbs() {
+  for (let i = 0; i < 15; i++) {
+    const orb = document.createElement('div');
+    orb.className = 'memory-float';
+    orb.innerHTML = '<div class="memory-orb"></div>';
+    orb.style.left = (Math.random() * 90 + 5) + '%';
+    orb.style.top = (Math.random() * 80 + 10) + '%';
+    document.body.appendChild(orb);
+
+    setTimeout(() => {
+      orb.classList.add('active');
+      setTimeout(() => { orb.classList.remove('active'); setTimeout(() => orb.remove(), 1000); }, Math.random() * 4000 + 2000);
+    }, Math.random() * 3000);
+  }
+}
+
+// ─── HEART PARTICLES ─────────────────────────────────────────────────────
+function spawnHearts() {
+  const scene = document.getElementById('love');
+  for (let i = 0; i < 20; i++) {
+    const h = document.createElement('div');
+    h.className = 'heart-particle';
+    h.textContent = '♡';
+    h.style.left = (Math.random() * 100) + '%';
+    h.style.bottom = '-10%';
+    h.style.animationDuration = (Math.random() * 8 + 6) + 's';
+    h.style.animationDelay = (Math.random() * 5) + 's';
+    h.style.fontSize = (Math.random() * 0.8 + 0.4) + 'rem';
+    scene.appendChild(h);
+  }
+}
+
+// ─── RAIN ─────────────────────────────────────────────────────────────────
+function spawnRain() {
+  const scene = document.getElementById('tragedy');
+  for (let i = 0; i < 80; i++) {
+    const drop = document.createElement('div');
+    drop.className = 'rain-drop';
+    drop.style.left = (Math.random() * 100) + '%';
+    drop.style.height = (Math.random() * 80 + 40) + 'px';
+    drop.style.animationDuration = (Math.random() * 1.5 + 0.8) + 's';
+    drop.style.animationDelay = (Math.random() * 2) + 's';
+    scene.appendChild(drop);
+  }
+}
+
+// ─── PROGRESS BAR ─────────────────────────────────────────────────────────
+function updateProgress() {
+  const doc = document.documentElement;
+  const pct = doc.scrollTop / (doc.scrollHeight - doc.clientHeight) * 100;
+  document.getElementById('progress-bar').style.width = pct + '%';
+}
+window.addEventListener('scroll', updateProgress, { passive: true });
+
+// ─── TIMELINE DOT TRACKING ─────────────────────────────────────────────────
+const sections = ['hero','dreamer','stardom','love','betrayal','tragedy','rebirth','investigation','justice'];
+const dots = document.querySelectorAll('.timeline-dot');
+
+function updateTimelineDots() {
+  const scrollY = window.scrollY;
+  let activeIdx = 0;
+  sections.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el && el.getBoundingClientRect().top < window.innerHeight * 0.5) activeIdx = i;
+  });
+  dots.forEach((d, i) => {
+    d.classList.toggle('active', i === activeIdx);
+  });
+}
+window.addEventListener('scroll', updateTimelineDots, { passive: true });
+
+dots.forEach(dot => {
+  dot.addEventListener('click', () => {
+    const target = dot.dataset.target;
+    document.querySelector(target)?.scrollIntoView({ behavior: 'smooth' });
+  });
+});
+
+// ─── THREE.JS CAMERA PARALLAX ─────────────────────────────────────────────
+let targetCameraX = 0, targetCameraY = 0;
+document.addEventListener('mousemove', e => {
+  targetCameraX = (e.clientX / window.innerWidth - 0.5) * 80;
+  targetCameraY = (e.clientY / window.innerHeight - 0.5) * -50;
+});
+
+let clock3d = 0;
+function animateThree() {
+  requestAnimationFrame(animateThree);
+  clock3d += 0.0003;
+
+  // Smooth camera to mouse
+  camera3d.position.x += (targetCameraX - camera3d.position.x) * 0.015;
+  camera3d.position.y += (targetCameraY - camera3d.position.y) * 0.015;
+
+  // Scroll-based camera drift
+  const scrollPct = window.scrollY / (document.body.scrollHeight - window.innerHeight);
+  camera3d.position.z = 800 - scrollPct * 400;
+  camera3d.rotation.z = scrollPct * 0.3;
+
+  // Nebula rotation
+  nebula.rotation.y = clock3d * 0.5;
+  nebula.rotation.x = Math.sin(clock3d * 0.3) * 0.1;
+  stars.rotation.y = clock3d * 0.08;
+  stars.rotation.x = Math.sin(clock3d * 0.2) * 0.03;
+
+  // Pulse opacity based on scene
+  const s = Math.sin(Date.now() * 0.001) * 0.2 + 0.8;
+  starMaterial.opacity = 0.7 * s;
+  nebMat.opacity = 0.25 * s;
+
+  renderer.render(scene3d, camera3d);
+}
+animateThree();
+
+// ─── GSAP SCROLL ANIMATIONS ───────────────────────────────────────────────
+function initExperience() {
+  // Hide loading screen
+  gsap.to('#loading-screen', {
+    duration: 1.2,
+    opacity: 0,
+    ease: 'power2.inOut',
+    onComplete: () => {
+      document.getElementById('loading-screen').style.display = 'none';
+      startAnimations();
+    }
+  });
+}
+
+function startAnimations() {
+  gsap.registerPlugin(ScrollTrigger, TextPlugin);
+
+  // ── HERO ──
+  const heroTl = gsap.timeline({ delay: 0.3 });
+  heroTl
+    .to('.hero-title', { opacity: 1, duration: 2, ease: 'power3.out' })
+    .to('.hero-tagline', { opacity: 1, y: 0, duration: 1.2, ease: 'power2.out' }, '-=1')
+    .to('.scroll-indicator', { opacity: 1, duration: 1, ease: 'power2.out' }, '-=0.5');
+
+  // Hero parallax on scroll
+  gsap.to('.hero-title', {
+    scrollTrigger: { trigger: '#hero', start: 'top top', end: 'bottom top', scrub: 1 },
+    y: -120, opacity: 0, scale: 0.9
+  });
+
+  // ── DREAMER ──
+  const dreamerTl = gsap.timeline({
+    scrollTrigger: { trigger: '#dreamer', start: 'top 70%', end: 'center 40%', scrub: false }
+  });
+  dreamerTl
+    .to('#label-dreamer', { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out' })
+    .from('#title-dreamer', { y: 60, duration: 1, ease: 'power3.out' })
+    .to('#title-dreamer', { opacity: 1, duration: 1, ease: 'power3.out' }, '<')
+    .to('#sub-dreamer', { opacity: 1, y: 0, duration: 0.8, ease: 'power2.out' }, '-=0.4')
+    .to('#body-dreamer', { opacity: 1, y: 0, duration: 0.8, ease: 'power2.out' }, '-=0.3');
+
+  gsap.from('.paint-stroke', {
+    scrollTrigger: { trigger: '#dreamer', start: 'top 80%', end: 'center 30%', scrub: 1.5 },
+    x: -100, opacity: 0
+  });
+
+  // ── STARDOM ──
+  const stardomTl = gsap.timeline({
+    scrollTrigger: { trigger: '#stardom', start: 'top 70%' }
+  });
+  stardomTl
+    .to('#label-stardom', { opacity: 1, duration: 0.6, ease: 'power2.out' })
+    .from('#title-stardom', { y: 80, duration: 1.2, ease: 'expo.out' })
+    .to('#title-stardom', { opacity: 1, duration: 1.2, ease: 'power2.out' }, '<')
+    .to('#sub-stardom', { opacity: 1, duration: 0.8, ease: 'power2.out' }, '-=0.4')
+    .to('#body-stardom', { opacity: 1, duration: 0.8, ease: 'power2.out' }, '-=0.3');
+
+  spawnMemoryOrbs();
+
+  // ── LOVE ──
+  const loveTl = gsap.timeline({
+    scrollTrigger: { trigger: '#love', start: 'top 65%' }
+  });
+  loveTl
+    .to('#label-love', { opacity: 1, duration: 0.6 })
+    .from('#title-love', { y: 60, scale: 0.8, duration: 1.5, ease: 'elastic.out(1,0.7)' })
+    .to('#title-love', { opacity: 1, duration: 1.5 }, '<')
+    .to('#sub-love', { opacity: 1, duration: 0.8 }, '-=0.5')
+    .to('#love-split', { opacity: 1, y: 0, duration: 1, ease: 'power2.out' }, '-=0.3');
+
+  spawnHearts();
+
+  // ── BETRAYAL ── (glass shatter trigger)
+  ScrollTrigger.create({
+    trigger: '#betrayal', start: 'top 60%', once: true,
+    onEnter: () => {
+      animateGlassShatter();
+      setTimeout(() => {
+        const betrayalTl = gsap.timeline();
+        betrayalTl
+          .to('#label-betrayal', { opacity: 1, duration: 0.6 })
+          .from('#title-betrayal', { y: 40, duration: 1, ease: 'power3.out' })
+          .to('#title-betrayal', { opacity: 1, duration: 1 }, '<')
+          .to('#sub-betrayal', { opacity: 1, duration: 0.8 }, '-=0.4')
+          .to('#body-betrayal', { opacity: 1, duration: 0.8 }, '-=0.3');
+      }, 300);
+    }
+  });
+
+  // ── TRAGEDY ──
+  const tragedyTl = gsap.timeline({
+    scrollTrigger: { trigger: '#tragedy', start: 'top 65%' }
+  });
+  tragedyTl
+    .to('#label-tragedy', { opacity: 1, duration: 0.6 })
+    .from('#title-tragedy', { y: 60, duration: 1.5, ease: 'power4.out' })
+    .to('#title-tragedy', { opacity: 1, duration: 1.5 }, '<')
+    .to('#sub-tragedy', { opacity: 1, duration: 0.8 }, '-=0.5')
+    .to('#tragedy-quote', { opacity: 1, x: 0, duration: 1.2, ease: 'power2.out' }, '-=0.2')
+    .to('#body-tragedy', { opacity: 1, duration: 0.8 }, '-=0.3');
+
+  spawnRain();
+
+  // Camera shake on tragedy
+  ScrollTrigger.create({
+    trigger: '#tragedy', start: 'top 50%', once: true,
+    onEnter: () => {
+      gsap.to(camera3d.position, {
+        x: '+=20', duration: 0.08, repeat: 6, yoyo: true, ease: 'none'
+      });
+    }
+  });
+
+  // ── REBIRTH ──
+  const rebirthTl = gsap.timeline({
+    scrollTrigger: { trigger: '#rebirth', start: 'top 65%' }
+  });
+  rebirthTl
+    .to('#label-rebirth', { opacity: 1, duration: 0.6 })
+    .from('#title-rebirth', { scale: 0.3, duration: 2.5, ease: 'elastic.out(1, 0.5)' })
+    .to('#title-rebirth', { opacity: 1, duration: 2.5 }, '<')
+    .to('#sub-rebirth', { opacity: 1, duration: 0.8 }, '-=0.8')
+    .to('#body-rebirth', { opacity: 1, duration: 0.8 }, '-=0.4');
+
+  // Phoenix nebula color shift
+  ScrollTrigger.create({
+    trigger: '#rebirth', start: 'top 50%', once: true,
+    onEnter: () => {
+      gsap.to(nebMat.color, { r: 0.8, g: 0.65, b: 0.2, duration: 3 });
+      gsap.to(nebMat, { opacity: 0.5, duration: 2 });
+      spawnMemoryOrbs();
+    }
+  });
+
+  // ── INVESTIGATION ──
+  const invTl = gsap.timeline({
+    scrollTrigger: { trigger: '#investigation', start: 'top 65%' }
+  });
+  invTl
+    .to('#label-investigation', { opacity: 1, duration: 0.6 })
+    .from('#title-investigation', { x: -80, duration: 1.2, ease: 'power3.out' })
+    .to('#title-investigation', { opacity: 1, duration: 1.2 }, '<')
+    .to('#sub-investigation', { opacity: 1, duration: 0.8 }, '-=0.4')
+    .to('#evidence-grid', { opacity: 1, duration: 0.8 }, '-=0.2');
+
+  gsap.from('.evidence-item', {
+    scrollTrigger: { trigger: '#evidence-grid', start: 'top 75%' },
+    y: 40, opacity: 0, duration: 0.7, stagger: 0.12, ease: 'power2.out'
+  });
+
+  // ── JUSTICE ──
+  const justiceTl = gsap.timeline({
+    scrollTrigger: { trigger: '#justice', start: 'top 65%' }
+  });
+  justiceTl
+    .to('#label-justice', { opacity: 1, duration: 0.6 })
+    .from('#title-justice', { y: 80, duration: 1.5, ease: 'expo.out' })
+    .to('#title-justice', { opacity: 1, duration: 1.5 }, '<')
+    .to('#sub-justice', { opacity: 1, duration: 0.8 }, '-=0.5')
+    .to('#body-justice', { opacity: 1, duration: 0.8 }, '-=0.3');
+
+  // Gold nebula for justice
+  ScrollTrigger.create({
+    trigger: '#justice', start: 'top 50%', once: true,
+    onEnter: () => {
+      gsap.to(nebMat.color, { r: 0.9, g: 0.78, b: 0.35, duration: 3 });
+      gsap.to(starMaterial, { opacity: 1, duration: 2 });
+    }
+  });
+
+  // ── FINALE ──
+  const finaleTl = gsap.timeline({
+    scrollTrigger: { trigger: '#finale', start: 'top 70%' }
+  });
+  finaleTl
+    .to('#finale-title', { opacity: 1, y: 0, duration: 1.5, ease: 'power3.out' })
+    .to('#finale-divider', { opacity: 1, scaleX: 1, duration: 0.8, ease: 'power2.out' }, '-=0.5')
+    .to('#finale-tagline', { opacity: 1, duration: 1.2, ease: 'power2.out' }, '-=0.3')
+    .to('#restart-btn', { opacity: 1, y: 0, duration: 0.8, ease: 'power2.out' }, '-=0.3');
+
+  // ── UNIVERSAL PARALLAX ON SCENE TITLES ──
+  gsap.utils.toArray('.scene-title').forEach(title => {
+    gsap.to(title, {
+      scrollTrigger: {
+        trigger: title.closest('.scene'),
+        start: 'top top', end: 'bottom top',
+        scrub: 1.5
+      },
+      y: -60
+    });
+  });
+
+  // ── SCENE BACKGROUND COLOR TRANSITIONS ──
+  ScrollTrigger.create({
+    trigger: '#love', start: 'top center',
+    onEnter: () => gsap.to(nebMat.color, { r: 0.75, g: 0.28, b: 0.3, duration: 2 }),
+    onLeaveBack: () => gsap.to(nebMat.color, { r: 0.5, g: 0.4, b: 0.2, duration: 2 })
+  });
+
+  ScrollTrigger.create({
+    trigger: '#betrayal', start: 'top center',
+    onEnter: () => gsap.to(nebMat.color, { r: 0.8, g: 0.15, b: 0.15, duration: 2 }),
+    onLeaveBack: () => gsap.to(nebMat.color, { r: 0.75, g: 0.28, b: 0.3, duration: 2 })
+  });
+
+  ScrollTrigger.create({
+    trigger: '#tragedy', start: 'top center',
+    onEnter: () => {
+      gsap.to(nebMat, { opacity: 0.1, duration: 2 });
+      gsap.to(starMaterial, { opacity: 0.3, duration: 2 });
+    },
+    onLeaveBack: () => {
+      gsap.to(nebMat, { opacity: 0.3, duration: 2 });
+      gsap.to(starMaterial, { opacity: 0.85, duration: 2 });
+    }
+  });
+
+  updateTimelineDots();
+}
+
+// ─── START ────────────────────────────────────────────────────────────────
+// Ensure fonts are loaded
+document.fonts.ready.then(() => {
+  if (loadProgress < 100) {
+    // Let loading animation finish naturally
+  }
+});
+</script>
+</body>
+</html>
